@@ -352,7 +352,7 @@ class ShvgCanvas extends HTMLElement {
         super();
         this.attachShadow({ mode: 'open' });
 
-        this.svgRenderer = new ShvgRenderer(new Projection(new HyperbolicVector(0.001, 0.001),0,3.4,1));
+        this.svgRenderer = new ShvgRenderer(new Projection(new HyperbolicVector(0.001, 0.002),0,3.4,1));
         this.elements = [];
         this.shadowRoot.innerHTML = this.svgRenderer.generateBaseSVG();
     }

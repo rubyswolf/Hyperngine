@@ -305,48 +305,85 @@ class ShvgRenderer { //A renderer that can render a hyperbolic scene into an SVG
                     fill="#0B2126" stroke="none" stroke-width="1"/>`;
     }
 
-    addPoint(vector, color = "blue", radius = 7) {
+    addPoint(vector, colour = "blue", radius = 7) {
         const {x, y} = this.toSVGCoords(vector);
-        return `<circle cx="${x}" cy="${y}" r="${radius}" fill="${color}"/>`;
+        return `<circle cx="${x}" cy="${y}" r="${radius}" fill="${colour}"/>`;
     }
 
-    addGeodesic(geo, color = "red", strokeWidth = 5) {
-        let p1 = this.toSVGCoords(geo.a);
-        let p2 = this.toSVGCoords(geo.b);
-        let p3 = this.toSVGCoords(geo.midpoint);
-
-        // Midpoints of two sides
-        const midAB = [(p1.x + p2.x) / 2, (p1.y + p2.y) / 2];
-        const midBC = [(p2.x + p3.x) / 2, (p2.y + p3.y) / 2];
-
-        // Slopes of perpendicular bisectors
-        const slopeAB = (p2.y - p1.y) / (p2.x - p1.x);
-        const slopeBC = (p3.y - p2.y) / (p3.x - p2.x);
-
-        const perpSlopeAB = -1 / slopeAB;
-        const perpSlopeBC = -1 / slopeBC;
-
-        // Solving for the intersection of the bisectors (center)
-        const centerX = (perpSlopeAB * midAB[0] - perpSlopeBC * midBC[0] + midBC[1] - midAB[1]) / 
-                        (perpSlopeAB - perpSlopeBC);
-        const centerY = perpSlopeAB * (centerX - midAB[0]) + midAB[1];
-
-        // Radius: distance from center to any of the points
-        const radius = Math.sqrt((centerX - p1.x) ** 2 + (centerY - p1.y) ** 2);
-        if (Number.isNaN(radius) || radius == 0) {
-            return `<line x1="${p1.x}" y1="${p1.y}" x2="${p2.x}" y2="${p2.y}" stroke="${color}" stroke-width="${strokeWidth}" fill="none"/>`;
+    geoPath(geo,samples,continuing = false) {
+        let points = [];
+        
+        // Generate sample points along the geodesic
+        for (let i = 0; i < samples; i++) {
+            let t = i / (samples - 1);
+            let point = geo.along(t);
+            points.push(this.toSVGCoords(point));
         }
 
-        // Signed area of the triangle to determine the sweep direction
-        const area = (p1.x - centerX) * (p3.y - centerY) - (p1.y - centerY) * (p3.x - centerX);
+        // Start path from the first point
+        let path = continuing?``:`M ${points[0].x} ${points[0].y} `
 
-        // Sweep flag is 1 if the area is positive (counterclockwise), otherwise 0 (clockwise)
-        const sweepFlag = area > 0 ? 1 : 0;
+        // Convert points along the geodesic to Bézier curves
+        for (let i = 0; i < points.length - 1; i++) {
+            let p0 = points[Math.max(i - 1, 0)];
+            let p1 = points[i];
+            let p2 = points[i + 1];
+            let p3 = points[Math.min(i + 2, points.length - 1)];
 
-        return `<path d="
-            M ${p1.x} ${p1.y} 
-            A ${radius} ${radius} 1 0 ${sweepFlag} ${p2.x} ${p2.y}
-            " stroke="${color}" stroke-width="${strokeWidth}" fill="none"/>`;
+            // Calculate control points for cubic Bézier from Catmull-Rom spline
+            let controlPoint1 = {
+                x: p1.x + (p2.x - p0.x) / 6,
+                y: p1.y + (p2.y - p0.y) / 6
+            };
+            let controlPoint2 = {
+                x: p2.x - (p3.x - p1.x) / 6,
+                y: p2.y - (p3.y - p1.y) / 6
+            };
+
+            // Use cubic Bézier curve to approximate spline segment
+            path += `C ${controlPoint1.x} ${controlPoint1.y}, ${controlPoint2.x} ${controlPoint2.y}, ${p2.x} ${p2.y} `;
+        }
+        return path
+    }
+
+    addGeodesic(geo,stroke,samples) {
+        return `<path d="${this.geoPath(geo,samples)}" stroke="${stroke.colour}" stroke-width="${stroke.width}" fill="none"/>`;
+    }
+
+    addPolygon(points,samples,fill,stroke) {
+        let path = points.map(((e,i)=>{return this.geoPath(new Geodesic(e,points[(i+1+points.length)%points.length]),samples,i!=0)})).join("")+"Z"
+        return stroke.enabled?`<path d="${path}" stroke="${stroke.colour}" stroke-width="${stroke.width}" fill="${fill}"/>`:`<path d="${path}" fill="${fill}"/>`;
+    }
+
+    addBlob(points,fill,stroke) {
+        points = points.map(point=>{return this.toSVGCoords(point)})
+        if (points.length < 2) return ''; // Ensure there are enough points to form a shape
+
+        // Calculate the initial midpoint between the first and last points
+        const firstMidpoint = {
+            x: (points[0].x + points[points.length - 1].x) / 2,
+            y: (points[0].y + points[points.length - 1].y) / 2
+        };
+        
+        // Start the path from the first midpoint
+        let path = `M ${firstMidpoint.x},${firstMidpoint.y}`;
+        
+        // Loop through each point and create quadratic Bézier segments to the next midpoint
+        for (let j = 0; j < points.length; j++) {
+            const nextIndex = (j + 1) % points.length; // Wrap around to form a closed shape
+            const midpoint = {
+                x: (points[j].x + points[nextIndex].x) / 2,
+                y: (points[j].y + points[nextIndex].y) / 2
+            };
+            path += ` Q ${points[j].x},${points[j].y} ${midpoint.x},${midpoint.y}`;
+        }
+    
+        // Return the complete SVG path element
+        return stroke.enabled?`<path d="${path}" fill="${fill}" stroke="${stroke.colour}" stroke-width="${stroke.width}"/>`:`<path d="${path}" fill="${fill}""/>`;
+    }
+
+    addCircle(centre,radius,samples,fill,stroke=Stroke.none) {
+        return this.addBlob(Array.from({ length: samples }, (v, i) => {return centre.add(HyperbolicVector.fromPolar(radius,(i/samples)*tau))}),fill,stroke)
     }
 
     render(elements) {
@@ -357,6 +394,21 @@ class ShvgRenderer { //A renderer that can render a hyperbolic scene into an SVG
     }
 }
 
+class Stroke {
+    constructor(colour,width,fixed,enabled=true) {
+        this.enabled=enabled
+        if (enabled)
+        {
+            this.colour=colour
+            this.width=width
+            this.fixed=fixed
+        }
+    }
+
+    static get none() {
+        return new Stroke(null,null,null,false)
+    }
+}
 class ShvgCanvas extends HTMLElement {
     constructor() {
         super();
@@ -367,13 +419,45 @@ class ShvgCanvas extends HTMLElement {
         this.shadowRoot.innerHTML = this.svgRenderer.generateBaseSVG();
     }
 
-    point(vector, color = "#000") {
-        const point = this.svgRenderer.addPoint(vector, color);
+    point(vector, colour = "#000") {
+        const point = this.svgRenderer.addPoint(vector, colour);
         this.elements.push(point);
     }
 
-    geodesic(geo, color = "#F00") {
-        this.elements.push(this.svgRenderer.addGeodesic(geo, color));
+    geodesic(geo,stroke=new Stroke("#F00",5,true),samples=5) {
+        if (stroke.enabled) {
+            if (stroke.fixed) {
+                this.elements.push(this.svgRenderer.addGeodesic(geo,stroke,samples));
+            } else {
+                let angle = geo.a.to(geo.b).angle
+                let step = stroke.width/2
+                let points = [geo.a.add(HyperbolicVector.fromPolar(step,angle+tau/4)),geo.a.add(HyperbolicVector.fromPolar(step,angle-tau/4)),geo.b.add(HyperbolicVector.fromPolar(step,angle-tau/4)),geo.b.add(HyperbolicVector.fromPolar(step,angle+tau/4))]
+                this.elements.push(this.svgRenderer.addPolygon(points,samples,stroke.colour,Stroke.none));
+            }
+        }
+    }
+    
+    polygon(points,samples=5, fill = "#0F0", stroke = new Stroke("#00F",5,true)) {
+        this.elements.push(this.svgRenderer.addPolygon(points,samples,fill,stroke));
+    }
+
+    blob(points, fill = "#0F0", stroke = new Stroke("#00F",5,true)) {
+        this.elements.push(this.svgRenderer.addBlob(points,fill,stroke));
+    }
+
+    circle(centre,radius=1,samples=10,fill="#888",stroke=new Stroke("#FFF",0.03,false)) {
+        if (stroke.enabled)
+        {
+            if (stroke.fixed)
+            {
+                this.elements.push(this.svgRenderer.addCircle(centre,radius,samples,fill,stroke));
+            } else {
+                this.elements.push(this.svgRenderer.addCircle(centre,radius+stroke.width,samples,stroke.colour,Stroke.none));
+                this.elements.push(this.svgRenderer.addCircle(centre,radius,samples,fill,stroke));
+            }
+        } else {
+            this.elements.push(this.svgRenderer.addCircle(centre,radius,samples,fill,stroke));
+        }
     }
 
     clear() {

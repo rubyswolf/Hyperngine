@@ -23,10 +23,12 @@
             let scaleFactor = centMid/(tiling.points[11].magnitude)
             // let subradius = centMid/tiling.points[11].diskMagnitude
             // let subtiling = createSubTiling(6,4,1,subradius)
-            let subtiling = createSubTiling(6,4,1,scaleFactor)
+            // let subtiling = createSubTiling(6,4,1,scaleFactor)
 
-            var tilePoints = subtiling.points.concat(tiling.points)
-            var tileEdges = subtiling.edges.concat(tiling.edges)
+            // var tilePoints = subtiling.points.concat(tiling.points)
+            // var tileEdges = subtiling.edges.concat(tiling.edges)
+            var tilePoints = tiling.points
+            var tileEdges = tiling.edges
             var drawPoints = []
 
 
@@ -103,16 +105,24 @@
 
                 tileEdges.forEach(tileEdge => {
                     let geo = new Geodesic(tileEdge[0],tileEdge[1])
-                    hcanvas.geodesic(geo, "#53e8d5");
+                    hcanvas.geodesic(geo,new Stroke("#53e8d5",0.03,false),10);
                 });
 
-                tilePoints.forEach(tilePoint => {
-                    hcanvas.point(tilePoint,"#000")
-                })
+                // tilePoints.forEach(tilePoint => {
+                //     hcanvas.point(tilePoint,"#000")
+                // })
+
+                hcanvas.circle(new HyperbolicVector(0,0),0.5,10,"#FF0",new Stroke("#000",0.03,false))
+                hcanvas.circle(HyperbolicVector.fromPolar(0.25,tau*0.15),0.08,10,"#000",Stroke.none)
+                hcanvas.circle(HyperbolicVector.fromPolar(0.25,tau/2-tau*0.15),0.08,10,"#000",Stroke.none)
+                // hcanvas.geodesic(new Geodesic(new HyperbolicVector(-0.1,-0.1),new HyperbolicVector(0.1,-0.1)),new Stroke("#000",8,true))
+                hcanvas.geodesic(new Geodesic(new HyperbolicVector(-0.1,-0.1),new HyperbolicVector(0.1,-0.1)),new Stroke("#000",0.03,false))
 
                 drawPoints.forEach(tilePoint => {
                     hcanvas.point(tilePoint,"#B3FF00")
                 })
+
+                // hcanvas.polygon([HyperbolicVector.fromPolar(0.5,0),HyperbolicVector.fromPolar(0.5,tau/4),HyperbolicVector.fromPolar(0.5,(2*tau)/4),HyperbolicVector.fromPolar(0.5,(3*tau)/4)],5,"none",new Stroke("#FFF",5,true))
 
                 hcanvas.draw();
                 requestAnimationFrame(drawFrame)
@@ -126,7 +136,7 @@
                 return (new ProjectedVector((x/bounds.width)*2-1,(1-(y/bounds.width))*2-1)).unproject(hcanvas.svgRenderer.projection)
             }
 
-            var input = {"grabbed": false, "static": true, "delta": new HyperbolicVector(0,0), ortho: false};
+            var input = {grabbed: false, static: true, delta: new HyperbolicVector(0,0), ortho: true};
 
             //Some different movement styles:
 
@@ -222,10 +232,6 @@
 
             document.addEventListener("DOMContentLoaded", ()=>{ //Initialise the rendering system
                 hcanvas = document.getElementById("hyperbolicCanvas")
-                hcanvas.svgRenderer.projection.orthographic = 0
-                hcanvas.svgRenderer.scale=Math.min(window.innerWidth,window.innerHeight)/Math.sqrt(window.innerWidth**2+window.innerHeight**2)
-                hcanvas.svgRenderer.projection.factor = 2
-                input.originalPosition = hcanvas.svgRenderer.position
                 drawFrame()
             });
 

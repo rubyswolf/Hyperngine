@@ -429,9 +429,10 @@ class ShvgCanvas extends HTMLElement {
             if (stroke.fixed) {
                 this.elements.push(this.svgRenderer.addGeodesic(geo,stroke,samples));
             } else {
-                let angle = geo.a.to(geo.b).angle
+                let anglea = geo.a.to(geo.b).angle
+                let angleb = geo.b.to(geo.a).angle
                 let step = stroke.width/2
-                let points = [geo.a.add(HyperbolicVector.fromPolar(step,angle+tau/4)),geo.a.add(HyperbolicVector.fromPolar(step,angle-tau/4)),geo.b.add(HyperbolicVector.fromPolar(step,angle-tau/4)),geo.b.add(HyperbolicVector.fromPolar(step,angle+tau/4))]
+                let points = [geo.a.add(HyperbolicVector.fromPolar(step,anglea+tau/4)),geo.a.add(HyperbolicVector.fromPolar(step,anglea-tau/4)),geo.b.add(HyperbolicVector.fromPolar(step,angleb+tau/4)),geo.b.add(HyperbolicVector.fromPolar(step,angleb-tau/4))]
                 this.elements.push(this.svgRenderer.addPolygon(points,samples,stroke.colour,Stroke.none));
             }
         }

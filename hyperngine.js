@@ -112,12 +112,21 @@ class HyperbolicVector { //A vector in the poincare disk model
             return Math.tanh(x/t2)*t2
         }
 
-        let shifted=projection.position.to(this) //Shift the incoming vector to the new origin
-        const r = projectTanh((shifted.magnitude/projection.factor),projection.orthographic); //The new radius from the centre as defined by the projection
+        let shifted=projection.position.to(this.scale(projection.scale)) //Shift the incoming vector to the new origin
+        const r = projectTanh(((shifted.magnitude)/projection.factor),projection.orthographic); //The new radius from the centre as defined by the projection
         const theta = shifted.angle+projection.rotation //Adds an extra rotation
         return new ProjectedVector( //Convert to a projected vector instance
             r * Math.cos(theta),
             r * Math.sin(theta)
+        );
+    }
+
+    subject(subRadius) { //Projects the vector into the poincare model a second time
+        let poincareR = Math.tanh((this.diskMagnitude*subRadius)/2);
+        let theta = this.angle 
+        return new HyperbolicVector(
+            poincareR * Math.cos(theta),
+            poincareR * Math.sin(theta)
         );
     }
 
@@ -233,12 +242,12 @@ class ProjectedVector { //A vector that has been projected from poincare
         return projection.position.add(new HyperbolicVector(
             r * Math.cos(theta),
             r * Math.sin(theta)
-        ));
+        )).scale(1/projection.scale);
     }
 }
 
 class Projection {
-    constructor(position,rotation,factor,orthographic) {
+    constructor(position,rotation,scale,factor,orthographic) {
         //Projection controls the distance from the disk to the hyperboloid in stereographic mode.
         //projection=1 gives the Beltrami-Klein model
         //projection=2 gives the Poincare model
@@ -256,6 +265,7 @@ class Projection {
 
         this.position=position
         this.rotation=rotation
+        this.scale=scale
         this.factor=factor
         this.orthographic=orthographic
     }
@@ -352,7 +362,7 @@ class ShvgCanvas extends HTMLElement {
         super();
         this.attachShadow({ mode: 'open' });
 
-        this.svgRenderer = new ShvgRenderer(new Projection(new HyperbolicVector(0.001, 0.002),0,3.4,1));
+        this.svgRenderer = new ShvgRenderer(new Projection(new HyperbolicVector(0.001, 0.002),0,1,3.4,1));
         this.elements = [];
         this.shadowRoot.innerHTML = this.svgRenderer.generateBaseSVG();
     }
@@ -445,5 +455,139 @@ function createTiling(p, q, maxDepth) {
         
         layer = nextLayer
     }
+
+    return {points, edges}
+}
+
+// function createSubTiling(p, q, maxDepth,subRadius) {
+//     let points = []
+//     let edges = []
+
+//     const centreToVertex = triangleSideLength(tau/p,tau/(2*q),tau/(2*q))
+//     const centerToMidpoint = triangleSideLength(tau/(2*p),tau/(q*2),tau/4)
+
+//     let layer = [new polygon([])]
+
+//     let prev = HyperbolicVector.fromPolar(centreToVertex,(p-1)*(tau/p))
+//     for (let i=0;i<p;i++)
+//     {
+//         let p1 = HyperbolicVector.fromPolar(centreToVertex,i*(tau/p))
+//         points.push(p1.subject(subRadius))
+//         layer[0].points.push(p1)
+//         edges.push([p1.subject(subRadius),prev.subject(subRadius)])
+//         prev = p1
+//     }
+
+//     function reflect(poly,direction,p) {
+//         let p1=poly.points[(direction+1)%p]
+//         let p2=poly.points[direction]
+
+//         let geo = new Geodesic(p1,p2)
+
+//         let others = []
+//         for (let i = 1; i<(p-1);i++) 
+//         {
+//             let index = (direction+p-i)
+//             let newPoint = poly.points[index%p].reflect(geo)
+//             others.push(newPoint)
+//             points.push(newPoint.subject(subRadius))
+//         }
+
+//         poly = new polygon([p1,p2].concat(others))
+
+//         poly.points.forEach((point,i) => {
+//             edges.push([point.subject(subRadius),poly.points[(i+1)%p].subject(subRadius)])
+//         });
+
+//         return poly
+//     }
+    
+//     for (let depth = 0; depth<maxDepth; depth++)
+//     {
+//         let nextLayer = []
+        
+//         layer.forEach(poly => {
+//             for (let i=0;i<p;i++)
+//             {
+//                 nextLayer.push(reflect(poly,i,p))
+//             }
+//         })
+        
+//         layer = nextLayer
+//     }
+
+//     reflect(layer[0],1,p)
+//     reflect(layer[1],1,p)
+//     reflect(layer[2],1,p)
+//     reflect(layer[3],1,p)
+//     reflect(layer[4],1,p)
+//     reflect(layer[5],1,p)
+
+//     return {points, edges}
+// }
+function createSubTiling(p, q, maxDepth,subRadius) {
+    let points = []
+    let edges = []
+
+    const centreToVertex = triangleSideLength(tau/p,tau/(2*q),tau/(2*q))
+    const centerToMidpoint = triangleSideLength(tau/(2*p),tau/(q*2),tau/4)
+
+    let layer = [new polygon([])]
+
+    let prev = HyperbolicVector.fromPolar(centreToVertex,(p-1)*(tau/p))
+    for (let i=0;i<p;i++)
+    {
+        let p1 = HyperbolicVector.fromPolar(centreToVertex,i*(tau/p))
+        points.push(p1.scale(subRadius))
+        layer[0].points.push(p1)
+        edges.push([p1.scale(subRadius),prev.scale(subRadius)])
+        prev = p1
+    }
+
+    function reflect(poly,direction,p) {
+        let p1=poly.points[(direction+1)%p]
+        let p2=poly.points[direction]
+
+        let geo = new Geodesic(p1,p2)
+
+        let others = []
+        for (let i = 1; i<(p-1);i++) 
+        {
+            let index = (direction+p-i)
+            let newPoint = poly.points[index%p].reflect(geo)
+            others.push(newPoint)
+            points.push(newPoint.scale(subRadius))
+        }
+
+        poly = new polygon([p1,p2].concat(others))
+
+        poly.points.forEach((point,i) => {
+            edges.push([point.scale(subRadius),poly.points[(i+1)%p].scale(subRadius)])
+        });
+
+        return poly
+    }
+    
+    for (let depth = 0; depth<maxDepth; depth++)
+    {
+        let nextLayer = []
+        
+        layer.forEach(poly => {
+            for (let i=0;i<p;i++)
+            {
+                nextLayer.push(reflect(poly,i,p))
+            }
+        })
+        
+        layer = nextLayer
+    }
+
+    reflect(layer[0],1,p)
+    reflect(layer[1],1,p)
+    reflect(layer[2],1,p)
+    reflect(layer[3],1,p)
+    reflect(layer[4],1,p)
+    reflect(layer[5],1,p)
+
     return {points, edges}
 }

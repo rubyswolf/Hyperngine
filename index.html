@@ -17,21 +17,16 @@
     <body>
         <script src="hyperngine.js"></script>
         <script>
-            //Try changing this to "hexagonal":
-            let tileType = "square"
-            
-            let tiling
-            switch (tileType) {
-                case "hexagonal":
-                    tiling = createTiling(6,4,2) //Order 4 Hexagonal Tiling of depth 2
-                    break;
-                case "square":
-                    tiling = createTiling(4,5,2) //Order 5 Square Tiling of depth 2
-                    break;
-            }
+            let centMid = triangleSideLength(tau/(2*6),tau/(4*2),tau/4)
+            // let subradius = HyperbolicVector.fromPolar(centMid*3,0).diskMagnitude
+            let tiling = createTiling(6,4,2)
+            let scaleFactor = centMid/(tiling.points[11].magnitude)
+            // let subradius = centMid/tiling.points[11].diskMagnitude
+            // let subtiling = createSubTiling(6,4,1,subradius)
+            let subtiling = createSubTiling(6,4,1,scaleFactor)
 
-            var tilePoints = tiling.points
-            var tileEdges = tiling.edges
+            var tilePoints = subtiling.points.concat(tiling.points)
+            var tileEdges = subtiling.edges.concat(tiling.edges)
             var drawPoints = []
 
 
@@ -40,7 +35,7 @@
             //Draw a circle of radius 1 around the origin out of points
             // for (let i = 0; i<360;i++)
             // {
-            //     drawPoints.push(HyperbolicVector.fromPolar(1,(i/360)*tau))
+            //     drawPoints.push(HyperbolicVector.fromPolar(subradius,(i/360)*tau))
             // }
 
 
@@ -57,19 +52,18 @@
             // }
 
             //Draw an arrow
-            let direction = {"hexagonal": tau/4, "square": tau/8}[tileType]
-            let arrowSize = {"hexagonal": 0.8, "square": 0.45}[tileType]
-
-            for (let i = 0; i<20;i++)
-            {
-                drawPoints.push(HyperbolicVector.fromPolar((i/20)*arrowSize,direction))
-            }
-            let tip = HyperbolicVector.fromPolar(arrowSize,direction)
-            for (let i = 0; i<10;i++)
-            {
-                drawPoints.push(tip.add(tip.to(new HyperbolicVector(0,0)).rotate(tau/8).scale((i/10)*0.75)))
-                drawPoints.push(tip.add(tip.to(new HyperbolicVector(0,0)).rotate(-tau/8).scale((i/10)*0.75)))
-            }
+            // let direction = {"hexagonal": tau/4, "square": tau/8}[tileType]
+            // let arrowSize = {"hexagonal": 0.8, "square": 0.45}[tileType]
+            // for (let i = 0; i<20;i++)
+            // {
+            //     drawPoints.push(HyperbolicVector.fromPolar((i/20)*arrowSize,direction))
+            // }
+            // let tip = HyperbolicVector.fromPolar(arrowSize,direction)
+            // for (let i = 0; i<10;i++)
+            // {
+            //     drawPoints.push(tip.add(tip.to(new HyperbolicVector(0,0)).rotate(tau/8).scale((i/10)*0.75)))
+            //     drawPoints.push(tip.add(tip.to(new HyperbolicVector(0,0)).rotate(-tau/8).scale((i/10)*0.75)))
+            // }
 
             var hcanvas
 
@@ -132,7 +126,7 @@
                 return (new ProjectedVector((x/bounds.width)*2-1,(1-(y/bounds.width))*2-1)).unproject(hcanvas.svgRenderer.projection)
             }
 
-            var input = {"grabbed": false, "static": true, "delta": new HyperbolicVector(0,0), ortho: true};
+            var input = {"grabbed": false, "static": true, "delta": new HyperbolicVector(0,0), ortho: false};
 
             //Some different movement styles:
 
@@ -228,9 +222,9 @@
 
             document.addEventListener("DOMContentLoaded", ()=>{ //Initialise the rendering system
                 hcanvas = document.getElementById("hyperbolicCanvas")
-                if (tileType=="square") {
-                    hcanvas.svgRenderer.projection.rotation = tau/8
-                }
+                hcanvas.svgRenderer.projection.orthographic = 0
+                hcanvas.svgRenderer.scale=Math.min(window.innerWidth,window.innerHeight)/Math.sqrt(window.innerWidth**2+window.innerHeight**2)
+                hcanvas.svgRenderer.projection.factor = 2
                 input.originalPosition = hcanvas.svgRenderer.position
                 drawFrame()
             });
